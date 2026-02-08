@@ -2,7 +2,7 @@
 
 API_ID = "26910777"  # Apna API ID yahan dalein (integer)
 API_HASH = "8601f2f24993f6fdbcbac3bb27ceec38" # Apna API HASH yahan dalein
-BOT_TOKEN = "8187673181:AAHsFlgGDzP3A_Rb72R4FH-YKkpb_mMsde8" # BotFather wala token
+BOT_TOKEN = "8187673181:AAF3vMY3jVmmrqKFd382Z9iNazDdx6lDXUA" # BotFather wala token
 ADMIN_ID = 5232142502  # Apna Numerical Telegram ID dalein
 
 # Fancy Start Message
