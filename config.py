@@ -1,9 +1,9 @@
 # config.py
 
-API_ID = 1234567  # Apna API ID yahan dalein (integer)
-API_HASH = "your_api_hash_here" # Apna API HASH yahan dalein
-BOT_TOKEN = "your_bot_token_here" # BotFather wala token
-ADMIN_ID = 123456789  # Apna Numerical Telegram ID dalein
+API_ID = "26910777"  # Apna API ID yahan dalein (integer)
+API_HASH = "8601f2f24993f6fdbcbac3bb27ceec38" # Apna API HASH yahan dalein
+BOT_TOKEN = "" # BotFather wala token
+ADMIN_ID = "5232142502"  # Apna Numerical Telegram ID dalein
 
 # Fancy Start Message
 START_MSG = """
