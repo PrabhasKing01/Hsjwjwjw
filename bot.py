@@ -52,7 +52,7 @@ async def approve_request(client, request: ChatJoinRequest):
         await client.send_photo(
             chat_id=request.from_user.id,
             photo=random.choice(IMG_LINKS),
-            caption=f"<b>ʜᴇʟʟᴏ {request.from_user.first_name} ✨,\n\nʏᴏᴜʀ ʀᴇǫᴜᴇsᴛ ᴛᴏ ᴊᴏɪɴ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>"
+            caption=f"<b>ʜᴇʟʟᴏ {request.from_user.first_name} ✨,\n\nʏᴏᴜʀ ʀᴇǫᴜᴇsᴛ ᴛᴏ ᴊᴏɪɴ ʜᴀs ʙᴇᴇɴ ᴀᴘᴘʀᴏᴠᴇᴅ!</b>\n\n📍ᴊᴏɪɴ ᴏᴜʀ ᴛᴇʟᴇɢʀᴀᴍ ᴄʜᴀɴɴᴇʟ - @Hindi_Tv_Verse & @AJ_TVSERIAL"
         )
     except Exception as e:
         print(f"Error: {e}")
