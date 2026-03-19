@@ -8,7 +8,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ChatJoinR
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
 from config import API_ID, API_HASH, BOT_TOKEN, START_MSG, IMG_LINKS, ADMIN_ID
 
-# --- SAFE IMPORT (pymongo fallback) ---
+# --- SAFE MONGODB IMPORT ---
 try:
     from pymongo import MongoClient
     MONGO = True
@@ -16,7 +16,7 @@ except:
     MONGO = False
 
 # --- DATABASE SETUP ---
-if MONGO:
+if MONGO and os.environ.get("MONGO_DB_URI"):
     mongo_client = MongoClient(os.environ.get("MONGO_DB_URI"))
     db = mongo_client["telegram_bot"]
     users_col = db["users"]
@@ -63,7 +63,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"Bot is Running")
 
-    def do_HEAD(self):  # ✅ FIXED
+    def do_HEAD(self):
         self.send_response(200)
         self.end_headers()
 
@@ -80,16 +80,18 @@ bot = Client("auto_approve_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT
 async def start_cmd(client, message):
     add_user(message.from_user.id)
 
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✨ Main Channel", url="https://t.me/Hindi_Tv_Verse"),
+            InlineKeyboardButton("📢 Updates", url="https://t.me/AJ_TVSERIAL")
+        ],
+        [InlineKeyboardButton("🛠 Support", url="https://t.me/SerialVerse_support")]
+    ])
+
     await message.reply_photo(
         photo=random.choice(IMG_LINKS),
         caption=START_MSG.format(name=message.from_user.first_name),
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✨ Main Channel", url="https://t.me/Hindi_Tv_Verse"),
-                InlineKeyboardButton("📢 Updates", url="https://t.me/AJ_TVSERIAL")
-            ],
-            [InlineKeyboardButton("🛠 Support", url="https://t.me/SerialVerse_support")]
-        ])
+        reply_markup=buttons
     )
 
 # --- AUTO APPROVE ---
@@ -112,7 +114,8 @@ async def approve_request(client, request: ChatJoinRequest):
 # --- STATS ---
 @bot.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def stats(client, message):
-    await message.reply_text(f"📊 Users: `{get_total_users()}`")
+    total = get_total_users()
+    await message.reply_text(f"📊 Users: `{total}`")
 
 # --- BROADCAST ---
 @bot.on_message(filters.command("broadcast") & filters.user(ADMIN_ID) & filters.reply)
@@ -145,7 +148,7 @@ async def broadcast(client, message):
         except Exception:
             failed += 1
 
-        if (i+1) % 100 == 0:
+        if (i + 1) % 100 == 0:
             try:
                 await status.edit(f"📤 {i+1}/{total} Done")
             except:
@@ -154,50 +157,6 @@ async def broadcast(client, message):
     await status.edit(
         f"✅ Done!\n\n"
         f"Success: {success}\nBlocked: {blocked}\nDeleted: {deleted}\nFailed: {failed}"
-    )
-
-# --- MAIN ---
-if __name__ == "__main__":
-    threading.Thread(target=run_health_server, daemon=True).start()
-    print("🔥 Bot Started Successfully!")
-    bot.run()            try:
-                await msg.copy(chat_id=user_id)
-                success += 1
-            except:
-                failed += 1
-
-        except UserIsBlocked:
-            blocked += 1
-            remove_user(user_id)
-
-        except InputUserDeactivated:
-            deleted += 1
-            remove_user(user_id)
-
-        except Exception as e:
-            failed += 1
-
-        # 🔄 Update every 100 users (better UX)
-        if (i + 1) % 100 == 0:
-            try:
-                await status.edit(
-                    f"📤 Broadcasting...\n\n"
-                    f"Done: {i+1}/{total}\n"
-                    f"✅ Success: {success}\n"
-                    f"🚫 Blocked: {blocked}\n"
-                    f"💀 Deleted: {deleted}\n"
-                    f"❌ Failed: {failed}"
-                )
-            except:
-                pass
-
-    await status.edit(
-        f"✅ Broadcast Completed!\n\n"
-        f"👥 Total: {total}\n"
-        f"✨ Success: {success}\n"
-        f"🚫 Blocked: {blocked}\n"
-        f"💀 Deleted: {deleted}\n"
-        f"❌ Failed: {failed}"
     )
 
 # --- MAIN ---
