@@ -6,30 +6,55 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ChatJoinRequest
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
-from pymongo import MongoClient
 from config import API_ID, API_HASH, BOT_TOKEN, START_MSG, IMG_LINKS, ADMIN_ID
 
-# --- MONGODB SETUP ---
-MONGO_DB_URI = os.environ.get("MONGO_DB_URI")
-mongo_client = MongoClient(MONGO_DB_URI)
-db = mongo_client["telegram_bot"]
-users_col = db["users"]
+# --- SAFE IMPORT (pymongo fallback) ---
+try:
+    from pymongo import MongoClient
+    MONGO = True
+except:
+    MONGO = False
 
-def add_user(user_id):
-    users_col.update_one(
-        {"user_id": user_id},
-        {"$set": {"user_id": user_id}},
-        upsert=True
-    )
+# --- DATABASE SETUP ---
+if MONGO:
+    mongo_client = MongoClient(os.environ.get("MONGO_DB_URI"))
+    db = mongo_client["telegram_bot"]
+    users_col = db["users"]
 
-def remove_user(user_id):
-    users_col.delete_one({"user_id": user_id})
+    def add_user(user_id):
+        users_col.update_one({"user_id": user_id}, {"$set": {"user_id": user_id}}, upsert=True)
 
-def get_total_users():
-    return users_col.count_documents({})
+    def remove_user(user_id):
+        users_col.delete_one({"user_id": user_id})
 
-def get_all_users():
-    return [user["user_id"] for user in users_col.find({}, {"user_id": 1})]
+    def get_total_users():
+        return users_col.count_documents({})
+
+    def get_all_users():
+        return [u["user_id"] for u in users_col.find({}, {"user_id": 1})]
+
+else:
+    import sqlite3
+    db = sqlite3.connect("users.db", check_same_thread=False)
+    cursor = db.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
+    db.commit()
+
+    def add_user(user_id):
+        cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+        db.commit()
+
+    def remove_user(user_id):
+        cursor.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+        db.commit()
+
+    def get_total_users():
+        cursor.execute("SELECT COUNT(*) FROM users")
+        return cursor.fetchone()[0]
+
+    def get_all_users():
+        cursor.execute("SELECT user_id FROM users")
+        return [row[0] for row in cursor.fetchall()]
 
 # --- HEALTH CHECK SERVER ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -38,7 +63,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"Bot is Running")
 
-    def do_HEAD(self):  # 🔥 FIXED
+    def do_HEAD(self):  # ✅ FIXED
         self.send_response(200)
         self.end_headers()
 
@@ -54,20 +79,17 @@ bot = Client("auto_approve_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     add_user(message.from_user.id)
-    photo = random.choice(IMG_LINKS)
-
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✨ ᴍᴀɪɴ ᴄʜᴀɴɴᴇʟ", url="https://t.me/Hindi_Tv_Verse"),
-            InlineKeyboardButton("📢 ᴜᴘᴅᴀᴛᴇꜱ", url="https://t.me/AJ_TVSERIAL")
-        ],
-        [InlineKeyboardButton("🛠 sᴜᴘᴘᴏʀᴛ ᴀᴅᴍɪɴ", url="https://t.me/SerialVerse_support")]
-    ])
 
     await message.reply_photo(
-        photo=photo,
+        photo=random.choice(IMG_LINKS),
         caption=START_MSG.format(name=message.from_user.first_name),
-        reply_markup=buttons
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✨ Main Channel", url="https://t.me/Hindi_Tv_Verse"),
+                InlineKeyboardButton("📢 Updates", url="https://t.me/AJ_TVSERIAL")
+            ],
+            [InlineKeyboardButton("🛠 Support", url="https://t.me/SerialVerse_support")]
+        ])
     )
 
 # --- AUTO APPROVE ---
@@ -79,7 +101,7 @@ async def approve_request(client, request: ChatJoinRequest):
         await client.send_photo(
             chat_id=request.from_user.id,
             photo=random.choice(IMG_LINKS),
-            caption=f"<b>Hello {request.from_user.first_name} ✨,\n\nYour request has been approved!</b>\n\nJoin: @Hindi_Tv_Verse & @AJ_TVSERIAL"
+            caption=f"<b>Hello {request.from_user.first_name} ✨,\n\nApproved!</b>"
         )
     except Exception as e:
         if "USER_ALREADY_PARTICIPANT" in str(e):
@@ -90,10 +112,9 @@ async def approve_request(client, request: ChatJoinRequest):
 # --- STATS ---
 @bot.on_message(filters.command("stats") & filters.user(ADMIN_ID))
 async def stats(client, message):
-    total = get_total_users()
-    await message.reply_text(f"📊 Total Users: `{total}`")
+    await message.reply_text(f"📊 Users: `{get_total_users()}`")
 
-# --- FAST + SAFE BROADCAST ---
+# --- BROADCAST ---
 @bot.on_message(filters.command("broadcast") & filters.user(ADMIN_ID) & filters.reply)
 async def broadcast(client, message):
     users = get_all_users()
@@ -102,17 +123,44 @@ async def broadcast(client, message):
     total = len(users)
     success = blocked = deleted = failed = 0
 
-    status = await message.reply_text(f"🚀 Broadcast Started...\n👥 Users: {total}")
+    status = await message.reply_text(f"🚀 Broadcasting to {total} users...")
 
     for i, user_id in enumerate(users):
         try:
             await msg.copy(chat_id=user_id)
             success += 1
-            await asyncio.sleep(0.04)  # 🔥 optimized speed
+            await asyncio.sleep(0.04)
 
         except FloodWait as e:
             await asyncio.sleep(e.value)
+
+        except UserIsBlocked:
+            blocked += 1
+            remove_user(user_id)
+
+        except InputUserDeactivated:
+            deleted += 1
+            remove_user(user_id)
+
+        except Exception:
+            failed += 1
+
+        if (i+1) % 100 == 0:
             try:
+                await status.edit(f"📤 {i+1}/{total} Done")
+            except:
+                pass
+
+    await status.edit(
+        f"✅ Done!\n\n"
+        f"Success: {success}\nBlocked: {blocked}\nDeleted: {deleted}\nFailed: {failed}"
+    )
+
+# --- MAIN ---
+if __name__ == "__main__":
+    threading.Thread(target=run_health_server, daemon=True).start()
+    print("🔥 Bot Started Successfully!")
+    bot.run()            try:
                 await msg.copy(chat_id=user_id)
                 success += 1
             except:
