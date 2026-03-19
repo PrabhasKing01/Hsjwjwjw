@@ -38,6 +38,10 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"Bot is Running")
 
+    def do_HEAD(self):  # 🔥 FIXED
+        self.send_response(200)
+        self.end_headers()
+
 def run_health_server():
     port = int(os.environ.get("PORT", 8000))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
@@ -78,7 +82,10 @@ async def approve_request(client, request: ChatJoinRequest):
             caption=f"<b>Hello {request.from_user.first_name} ✨,\n\nYour request has been approved!</b>\n\nJoin: @Hindi_Tv_Verse & @AJ_TVSERIAL"
         )
     except Exception as e:
-        print(e)
+        if "USER_ALREADY_PARTICIPANT" in str(e):
+            pass
+        else:
+            print(e)
 
 # --- STATS ---
 @bot.on_message(filters.command("stats") & filters.user(ADMIN_ID))
@@ -86,7 +93,7 @@ async def stats(client, message):
     total = get_total_users()
     await message.reply_text(f"📊 Total Users: `{total}`")
 
-# --- FAST BROADCAST ---
+# --- FAST + SAFE BROADCAST ---
 @bot.on_message(filters.command("broadcast") & filters.user(ADMIN_ID) & filters.reply)
 async def broadcast(client, message):
     users = get_all_users()
@@ -101,7 +108,7 @@ async def broadcast(client, message):
         try:
             await msg.copy(chat_id=user_id)
             success += 1
-            await asyncio.sleep(0.03)  # 🔥 fast but safe
+            await asyncio.sleep(0.04)  # 🔥 optimized speed
 
         except FloodWait as e:
             await asyncio.sleep(e.value)
@@ -119,19 +126,22 @@ async def broadcast(client, message):
             deleted += 1
             remove_user(user_id)
 
-        except Exception:
+        except Exception as e:
             failed += 1
 
-        # 🔄 Progress update every 200 users
-        if (i+1) % 200 == 0:
-            await status.edit(
-                f"📤 Broadcasting...\n\n"
-                f"Done: {i+1}/{total}\n"
-                f"✅ Success: {success}\n"
-                f"🚫 Blocked: {blocked}\n"
-                f"💀 Deleted: {deleted}\n"
-                f"❌ Failed: {failed}"
-            )
+        # 🔄 Update every 100 users (better UX)
+        if (i + 1) % 100 == 0:
+            try:
+                await status.edit(
+                    f"📤 Broadcasting...\n\n"
+                    f"Done: {i+1}/{total}\n"
+                    f"✅ Success: {success}\n"
+                    f"🚫 Blocked: {blocked}\n"
+                    f"💀 Deleted: {deleted}\n"
+                    f"❌ Failed: {failed}"
+                )
+            except:
+                pass
 
     await status.edit(
         f"✅ Broadcast Completed!\n\n"
